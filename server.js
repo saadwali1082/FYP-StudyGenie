@@ -24,9 +24,9 @@ app.get("/", (req, res) => {
   res.send("StudyGenie Backend Running Successfully");
 });
 
-app.use("/api/ai", aiRoutes);
-app.use("/api/auth", authRoutes);
-app.use("/api/pdf", pdfRoutes);
+const aiRoutes = require("./routes/aiRoutes.js");
+const authRoutes = require("./routes/authRoutes.js");
+const pdfRoutes = require("./routes/pdfRoutes.js");
 
 const PORT = process.env.PORT || 5000;
 
