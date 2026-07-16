@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 
+// Import routes - ONLY ONCE!
 const aiRoutes = require("./routes/aiRoutes");
 const authRoutes = require("./routes/authRoutes");
 const pdfRoutes = require("./routes/pdfRoutes");
@@ -24,12 +25,14 @@ app.get("/", (req, res) => {
   res.send("StudyGenie Backend Running Successfully");
 });
 
-const aiRoutes = require("./routes/aiRoutes.js");
-const authRoutes = require("./routes/authRoutes.js");
-const pdfRoutes = require("./routes/pdfRoutes.js");
+// Use the routes
+app.use("/api/ai", aiRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/pdf", pdfRoutes);
 
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`📍 http://localhost:${PORT}`);
 });
