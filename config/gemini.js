@@ -1,4 +1,3 @@
-// config/gemini.js
 const { GoogleGenAI } = require("@google/genai");
 
 let aiInstance = null;
