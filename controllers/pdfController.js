@@ -4,28 +4,44 @@ const pdfjsLib = require("pdfjs-dist/legacy/build/pdf.js");
 const ai = require("../config/gemini");
 const { db } = require("../config/firebase");
 
-const askGemini = async (prompt) => {
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: prompt,
-  });
+// Ensure uploads directory exists
+const uploadDir = path.join(__dirname, "../uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+  console.log("📁 Uploads folder created");
+}
 
-  return response.text;
+const askGemini = async (prompt) => {
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash-exp",
+      contents: prompt,
+    });
+    return response.text;
+  } catch (error) {
+    console.error("Gemini error:", error);
+    throw error;
+  }
 };
 
 const extractTextFromBuffer = async (buffer) => {
-  const data = new Uint8Array(buffer);
-  const pdf = await pdfjsLib.getDocument({ data }).promise;
+  try {
+    const data = new Uint8Array(buffer);
+    const pdf = await pdfjsLib.getDocument({ data }).promise;
 
-  let text = "";
+    let text = "";
 
-  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-    const page = await pdf.getPage(pageNumber);
-    const content = await page.getTextContent();
-    text += content.items.map((item) => item.str).join(" ") + "\n";
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+      text += content.items.map((item) => item.str).join(" ") + "\n";
+    }
+
+    return text.trim();
+  } catch (error) {
+    console.error("PDF extraction error:", error);
+    throw new Error("Failed to extract text from PDF");
   }
-
-  return text.trim();
 };
 
 const summarizePdf = async (req, res) => {
@@ -61,6 +77,9 @@ const summarizePdf = async (req, res) => {
       createdAt: new Date(),
     });
 
+    // Clean up uploaded file
+    fs.unlinkSync(req.file.path);
+
     res.status(200).json({
       success: true,
       id: savedDoc.id,
@@ -68,6 +87,11 @@ const summarizePdf = async (req, res) => {
       summary,
     });
   } catch (error) {
+    console.error("PDF summary error:", error);
+    // Clean up uploaded file if it exists
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
     res.status(500).json({
       success: false,
       message: error.message,
@@ -117,6 +141,7 @@ const summarizePdfBase64 = async (req, res) => {
       summary,
     });
   } catch (error) {
+    console.error("PDF summary error:", error);
     res.status(500).json({
       success: false,
       message: error.message,
