@@ -1,19 +1,6 @@
 const { askGemini } = require("../config/gemini");
 const { db } = require("../config/firebase");
 
-const askGemini = async (prompt) => {
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-exp",
-      contents: prompt,
-    });
-    return response.text;
-  } catch (error) {
-    console.error("Gemini error:", error);
-    throw error;
-  }
-};
-
 const generateSummary = async (req, res) => {
   try {
     const { text, userId } = req.body;
