@@ -1,4 +1,4 @@
-const ai = require("../config/gemini");
+const { askGemini } = require("../config/gemini");
 const { db } = require("../config/firebase");
 
 const askGemini = async (prompt) => {
