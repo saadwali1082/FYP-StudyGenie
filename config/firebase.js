@@ -12,7 +12,9 @@ try {
     type: "service_account",
     project_id: process.env.FIREBASE_PROJECT_ID,
     private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-    private_key: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined,
+    private_key: process.env.FIREBASE_PRIVATE_KEY 
+      ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n').replace(/"/g, '')
+      : undefined,
     client_email: process.env.FIREBASE_CLIENT_EMAIL,
     client_id: process.env.FIREBASE_CLIENT_ID,
     auth_uri: "https://accounts.google.com/o/oauth2/auth",
@@ -21,6 +23,13 @@ try {
     client_x509_cert_url: process.env.FIREBASE_CERT_URL,
     universe_domain: "googleapis.com"
   };
+
+  // Log the private key format for debugging (remove in production)
+  if (serviceAccount.private_key) {
+    console.log("Private key starts with:", serviceAccount.private_key.substring(0, 27));
+    console.log("Private key ends with:", serviceAccount.private_key.substring(serviceAccount.private_key.length - 25));
+    console.log("Contains newlines:", serviceAccount.private_key.includes('\n'));
+  }
 
   // Validate required fields
   const required = ['project_id', 'private_key', 'client_email'];
