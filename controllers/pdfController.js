@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const pdfjsLib = require("pdfjs-dist/legacy/build/pdf.js");
-const ai = require("../config/gemini");
+const { askGemini } = require("../config/gemini");
 const { db } = require("../config/firebase");
 
 // Ensure uploads directory exists
@@ -10,19 +10,6 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
   console.log("📁 Uploads folder created");
 }
-
-const askGemini = async (prompt) => {
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-exp",
-      contents: prompt,
-    });
-    return response.text;
-  } catch (error) {
-    console.error("Gemini error:", error);
-    throw error;
-  }
-};
 
 const extractTextFromBuffer = async (buffer) => {
   try {
