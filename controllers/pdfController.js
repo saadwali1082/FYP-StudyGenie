@@ -4,7 +4,6 @@ const pdfjsLib = require("pdfjs-dist/legacy/build/pdf.js");
 const { askGemini } = require("../config/gemini");
 const { db } = require("../config/firebase");
 
-// Ensure uploads directory exists
 const uploadDir = path.join(__dirname, "../uploads");
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
@@ -42,6 +41,8 @@ const summarizePdf = async (req, res) => {
       });
     }
 
+    console.log("📄 Processing PDF:", req.file.originalname);
+
     const fileBuffer = fs.readFileSync(req.file.path);
     const extractedText = await extractTextFromBuffer(fileBuffer);
 
@@ -52,17 +53,25 @@ const summarizePdf = async (req, res) => {
       });
     }
 
+    console.log("📄 Extracted text length:", extractedText.length);
+
     const summary = await askGemini(
       `Summarize this PDF study material in simple student-friendly language:\n\n${extractedText}`
     );
 
-    const savedDoc = await db.collection("pdfSummaries").add({
+    console.log("✅ Summary generated, saving to Firebase...");
+
+    // Save to Firebase - using 'summaries' collection instead of 'pdfSummaries'
+    const savedDoc = await db.collection("summaries").add({
       userId: userId || "guest",
       fileName: req.file.originalname,
-      extractedText,
-      summary,
+      originalText: extractedText,
+      summary: summary,
+      type: "pdf",
       createdAt: new Date(),
     });
+
+    console.log("✅ Saved to Firebase with ID:", savedDoc.id);
 
     // Clean up uploaded file
     fs.unlinkSync(req.file.path);
@@ -71,10 +80,10 @@ const summarizePdf = async (req, res) => {
       success: true,
       id: savedDoc.id,
       fileName: req.file.originalname,
-      summary,
+      summary: summary,
     });
   } catch (error) {
-    console.error("PDF summary error:", error);
+    console.error("❌ PDF summary error:", error);
     // Clean up uploaded file if it exists
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
@@ -113,11 +122,13 @@ const summarizePdfBase64 = async (req, res) => {
       `Summarize this PDF study material in simple student-friendly language:\n\n${extractedText}`
     );
 
-    const savedDoc = await db.collection("pdfSummaries").add({
+    // Save to Firebase - using 'summaries' collection
+    const savedDoc = await db.collection("summaries").add({
       userId: userId || "guest",
       fileName: fileName || "study-material.pdf",
-      extractedText,
-      summary,
+      originalText: extractedText,
+      summary: summary,
+      type: "pdf",
       createdAt: new Date(),
     });
 
@@ -125,10 +136,10 @@ const summarizePdfBase64 = async (req, res) => {
       success: true,
       id: savedDoc.id,
       fileName: fileName || "study-material.pdf",
-      summary,
+      summary: summary,
     });
   } catch (error) {
-    console.error("PDF summary error:", error);
+    console.error("❌ PDF summary error:", error);
     res.status(500).json({
       success: false,
       message: error.message,
