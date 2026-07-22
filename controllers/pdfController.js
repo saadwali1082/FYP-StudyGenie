@@ -1,9 +1,11 @@
+// controllers/pdfController.js
 const fs = require("fs");
 const path = require("path");
 const pdfjsLib = require("pdfjs-dist/legacy/build/pdf.js");
 const { askGemini } = require("../config/gemini");
 const { db } = require("../config/firebase");
 
+// Ensure uploads directory exists
 const uploadDir = path.join(__dirname, "../uploads");
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
@@ -25,7 +27,7 @@ const extractTextFromBuffer = async (buffer) => {
 
     return text.trim();
   } catch (error) {
-    console.error("PDF extraction error:", error);
+    console.error("❌ PDF extraction error:", error);
     throw new Error("Failed to extract text from PDF");
   }
 };
@@ -46,7 +48,7 @@ const summarizePdf = async (req, res) => {
     const fileBuffer = fs.readFileSync(req.file.path);
     const extractedText = await extractTextFromBuffer(fileBuffer);
 
-    if (!extractedText) {
+    if (!extractedText || extractedText.trim().length === 0) {
       return res.status(400).json({
         success: false,
         message: "No readable text found in PDF",
@@ -61,7 +63,7 @@ const summarizePdf = async (req, res) => {
 
     console.log("✅ Summary generated, saving to Firebase...");
 
-    // Save to Firebase - using 'summaries' collection instead of 'pdfSummaries'
+    // Save to Firebase - using 'summaries' collection
     const savedDoc = await db.collection("summaries").add({
       userId: userId || "guest",
       fileName: req.file.originalname,
@@ -106,21 +108,27 @@ const summarizePdfBase64 = async (req, res) => {
       });
     }
 
+    console.log("📄 Processing Base64 PDF:", fileName || "unnamed.pdf");
+
     const cleanBase64 = base64.includes(",") ? base64.split(",")[1] : base64;
     const fileBuffer = Buffer.from(cleanBase64, "base64");
 
     const extractedText = await extractTextFromBuffer(fileBuffer);
 
-    if (!extractedText) {
+    if (!extractedText || extractedText.trim().length === 0) {
       return res.status(400).json({
         success: false,
         message: "No readable text found in PDF",
       });
     }
 
+    console.log("📄 Extracted text length:", extractedText.length);
+
     const summary = await askGemini(
       `Summarize this PDF study material in simple student-friendly language:\n\n${extractedText}`
     );
+
+    console.log("✅ Summary generated, saving to Firebase...");
 
     // Save to Firebase - using 'summaries' collection
     const savedDoc = await db.collection("summaries").add({
@@ -131,6 +139,8 @@ const summarizePdfBase64 = async (req, res) => {
       type: "pdf",
       createdAt: new Date(),
     });
+
+    console.log("✅ Saved to Firebase with ID:", savedDoc.id);
 
     res.status(200).json({
       success: true,
