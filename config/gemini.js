@@ -1,28 +1,26 @@
+
 const { GoogleGenAI } = require("@google/genai");
 
-let aiInstance = null;
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+});
 
-const getGeminiInstance = () => {
-  if (!aiInstance) {
-    aiInstance = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY,
-    });
-  }
-  return aiInstance;
-};
+const MODEL_NAME = "gemini-1.5-flash";
 
 const askGemini = async (prompt) => {
   try {
-    const ai = getGeminiInstance();
+    console.log("🤖 Calling Gemini with model:", MODEL_NAME);
+    
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-exp",
+      model: MODEL_NAME,
       contents: prompt,
     });
+    
     return response.text;
   } catch (error) {
-    console.error("Gemini API error:", error);
+    console.error("❌ Gemini API error:", error);
     throw error;
   }
 };
 
-module.exports = { askGemini, getGeminiInstance };
+module.exports = { askGemini };
