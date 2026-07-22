@@ -12,23 +12,31 @@ const generateSummary = async (req, res) => {
       });
     }
 
+    console.log("📄 Generating summary for text length:", text.length);
+
     const summary = await askGemini(
       `Summarize this study material in easy student language:\n\n${text}`
     );
 
+    console.log("✅ Summary generated, saving to Firebase...");
+
     const savedDoc = await db.collection("summaries").add({
       userId: userId || "guest",
       originalText: text,
-      summary,
+      summary: summary,
+      type: "text",
       createdAt: new Date(),
     });
+
+    console.log("✅ Saved to Firebase with ID:", savedDoc.id);
 
     res.status(200).json({
       success: true,
       id: savedDoc.id,
-      summary,
+      summary: summary,
     });
   } catch (error) {
+    console.error("❌ Summary error:", error);
     res.status(500).json({
       success: false,
       message: error.message,
@@ -47,23 +55,31 @@ const generateQuiz = async (req, res) => {
       });
     }
 
+    console.log("📝 Generating quiz for text length:", text.length);
+
     const quiz = await askGemini(
-      `Create 5 quiz questions with answers from this study material:\n\n${text}`
+      `Create 5 quiz questions with answers from this study material. Format as JSON with questions array containing question, options, and correctAnswer:\n\n${text}`
     );
+
+    console.log("✅ Quiz generated, saving to Firebase...");
 
     const savedDoc = await db.collection("quizzes").add({
       userId: userId || "guest",
       originalText: text,
-      quiz,
+      quiz: quiz,
+      type: "quiz",
       createdAt: new Date(),
     });
+
+    console.log("✅ Saved to Firebase with ID:", savedDoc.id);
 
     res.status(200).json({
       success: true,
       id: savedDoc.id,
-      quiz,
+      quiz: quiz,
     });
   } catch (error) {
+    console.error("❌ Quiz error:", error);
     res.status(500).json({
       success: false,
       message: error.message,
@@ -82,23 +98,31 @@ const generateFlashcards = async (req, res) => {
       });
     }
 
+    console.log("🃏 Generating flashcards for text length:", text.length);
+
     const flashcards = await askGemini(
-      `Create flashcards from this study material. Format each as Question and Answer:\n\n${text}`
+      `Create 10 flashcards from this study material. Format as JSON array with question and answer fields:\n\n${text}`
     );
+
+    console.log("✅ Flashcards generated, saving to Firebase...");
 
     const savedDoc = await db.collection("flashcards").add({
       userId: userId || "guest",
       originalText: text,
-      flashcards,
+      flashcards: flashcards,
+      type: "flashcards",
       createdAt: new Date(),
     });
+
+    console.log("✅ Saved to Firebase with ID:", savedDoc.id);
 
     res.status(200).json({
       success: true,
       id: savedDoc.id,
-      flashcards,
+      flashcards: flashcards,
     });
   } catch (error) {
+    console.error("❌ Flashcards error:", error);
     res.status(500).json({
       success: false,
       message: error.message,
@@ -117,23 +141,86 @@ const chatbot = async (req, res) => {
       });
     }
 
+    console.log("💬 Chatbot question:", question.substring(0, 50) + "...");
+
     const answer = await askGemini(
-      `You are StudyGenie, a helpful AI study assistant. Answer this student question clearly:\n\n${question}`
+      `You are StudyGenie, a helpful AI study assistant. Answer this student question clearly and concisely:\n\n${question}`
     );
+
+    console.log("✅ Answer generated, saving to Firebase...");
 
     const savedDoc = await db.collection("chatHistory").add({
       userId: userId || "guest",
-      question,
-      answer,
+      question: question,
+      answer: answer,
+      type: "chat",
       createdAt: new Date(),
     });
+
+    console.log("✅ Saved to Firebase with ID:", savedDoc.id);
 
     res.status(200).json({
       success: true,
       id: savedDoc.id,
-      answer,
+      answer: answer,
     });
   } catch (error) {
+    console.error("❌ Chatbot error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+const getUserSummaries = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const snapshot = await db
+      .collection("summaries")
+      .where("userId", "==", userId || "guest")
+      .orderBy("createdAt", "desc")
+      .limit(20)
+      .get();
+
+    const summaries = [];
+    snapshot.forEach((doc) => {
+      summaries.push({ id: doc.id, ...doc.data() });
+    });
+
+    res.status(200).json({
+      success: true,
+      data: summaries,
+    });
+  } catch (error) {
+    console.error("❌ Get summaries error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+const getSummaryById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const doc = await db.collection("summaries").doc(id).get();
+
+    if (!doc.exists) {
+      return res.status(404).json({
+        success: false,
+        message: "Summary not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: { id: doc.id, ...doc.data() },
+    });
+  } catch (error) {
+    console.error("❌ Get summary error:", error);
     res.status(500).json({
       success: false,
       message: error.message,
@@ -146,4 +233,6 @@ module.exports = {
   generateQuiz,
   generateFlashcards,
   chatbot,
+  getUserSummaries,
+  getSummaryById,
 };
