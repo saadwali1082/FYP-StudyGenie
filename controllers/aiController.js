@@ -1,3 +1,4 @@
+// controllers/aiController.js
 const { askGemini } = require("../config/gemini");
 const { db } = require("../config/firebase");
 
@@ -173,6 +174,7 @@ const chatbot = async (req, res) => {
   }
 };
 
+// Get all summaries for a user
 const getUserSummaries = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -202,6 +204,7 @@ const getUserSummaries = async (req, res) => {
   }
 };
 
+// Get a single summary by ID
 const getSummaryById = async (req, res) => {
   try {
     const { id } = req.params;
