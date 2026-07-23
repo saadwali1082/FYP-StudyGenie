@@ -1,3 +1,4 @@
+// server.js
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
@@ -5,6 +6,7 @@ require("dotenv").config();
 const aiRoutes = require("./routes/aiRoutes");
 const authRoutes = require("./routes/authRoutes");
 const pdfRoutes = require("./routes/pdfRoutes");
+const materialRoutes = require("./routes/materialRoutes");
 
 const app = express();
 
@@ -18,7 +20,8 @@ app.use(
 
 app.options("*", cors());
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 app.get("/", (req, res) => {
   res.send("StudyGenie Backend Running Successfully");
@@ -27,6 +30,7 @@ app.get("/", (req, res) => {
 app.use("/api/ai", aiRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/pdf", pdfRoutes);
+app.use("/api/materials", materialRoutes);
 
 const PORT = process.env.PORT || 5000;
 
