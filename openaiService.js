@@ -1,357 +1,1204 @@
-// openaiService.js — powered by OpenRouter
+// openaiService.js
+// StudyGenie AI Service powered by OpenRouter
+
 import { Platform } from 'react-native';
 
-// ⚠️ Replace with your OpenRouter API key
-const OPENROUTER_API_KEY = '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';
 
-// Model to use (free tier on OpenRouter)
+// =====================================================
+// OPENROUTER CONFIGURATION
+// =====================================================
+
+const OPENROUTER_API_KEY =
+  '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';
+
 const MODEL = 'openrouter/free';
 
-// ─────────────────────────────────────────────────────────────────
-// ROBUST PDF TEXT EXTRACTOR (WEB ONLY via PDF.js)
-// ─────────────────────────────────────────────────────────────────
+const OPENROUTER_URL =
+  'https://openrouter.ai/api/v1/chat/completions';
+
+
+// =====================================================
+// LOAD PDF.JS
+// =====================================================
+
 const loadPdfJs = () => {
   return new Promise((resolve, reject) => {
-    // If running outside web, this won't work
-    if (typeof window === 'undefined' || !document) {
-      return reject(new Error('PDF.js loading is only supported on the web.'));
+
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      reject(
+        new Error(
+          'PDF text extraction is currently supported on the Expo Snack Web version.'
+        )
+      );
+      return;
     }
 
+    // PDF.js already loaded
     if (window.pdfjsLib) {
-      return resolve(window.pdfjsLib);
+      resolve(window.pdfjsLib);
+      return;
     }
 
     console.log('🌐 Loading PDF.js from CDN...');
+
     const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js';
-    
+
+    script.src =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js';
+
     script.onload = () => {
-      // Set worker to matching version
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 
+
+      if (!window.pdfjsLib) {
+        reject(
+          new Error('PDF.js failed to initialize.')
+        );
+        return;
+      }
+
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
         'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
       console.log('✅ PDF.js loaded successfully');
+
       resolve(window.pdfjsLib);
     };
-    
-    script.onerror = () => reject(new Error('Failed to load PDF.js from CDN'));
+
+    script.onerror = () => {
+      reject(
+        new Error('Failed to load PDF.js from CDN.')
+      );
+    };
+
     document.head.appendChild(script);
   });
 };
 
+
+// =====================================================
+// EXTRACT TEXT FROM PDF
+// =====================================================
+
 const extractTextFromPDF = async (arrayBuffer) => {
+
   if (Platform.OS !== 'web') {
-    throw new Error('Text extraction currently only supported on Snack Web version.');
+    throw new Error(
+      'PDF text extraction is currently supported on Expo Snack Web.'
+    );
   }
 
   const pdfjs = await loadPdfJs();
-  
-  // Load the document using the binary data
-  const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+
+  console.log('📖 Loading PDF document...');
+
+  const loadingTask = pdfjs.getDocument({
+    data: arrayBuffer,
+  });
+
   const pdf = await loadingTask.promise;
-  
-  console.log(`📄 PDF loaded. It has ${pdf.numPages} pages.`);
-  
+
+  console.log(
+    `📄 PDF loaded. It has ${pdf.numPages} pages.`
+  );
+
   let fullText = '';
-  
-  // Loop through each page and extract text
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const textContent = await page.getTextContent();
-    const pageText = textContent.items.map(item => item.str).join(' ');
+
+  for (
+    let pageNumber = 1;
+    pageNumber <= pdf.numPages;
+    pageNumber++
+  ) {
+
+    console.log(
+      `📖 Reading page ${pageNumber}/${pdf.numPages}...`
+    );
+
+    const page = await pdf.getPage(pageNumber);
+
+    const textContent =
+      await page.getTextContent();
+
+    const pageText = textContent.items
+      .map(item => item.str)
+      .join(' ');
+
     fullText += pageText + '\n';
   }
-  
-  return fullText.trim();
+
+  const finalText =
+    fullText.trim();
+
+  console.log(
+    `✅ PDF extraction complete: ${finalText.length} characters`
+  );
+
+  return finalText;
 };
 
-// ─────────────────────────────────────────────────────────────────
-// MAIN EXPORT — called by SummaryScreen.js
-// ─────────────────────────────────────────────────────────────────
-export const summarizePDF = async (fileUri, fileName) => {
-  try {
-    // ── Step 1: Fetch the PDF from the picker URI ──
-    console.log('📥 Fetching PDF...');
-    const fetchRes = await fetch(fileUri);
 
-    if (!fetchRes.ok) {
-      return { success: false, message: 'Could not read the selected PDF file.' };
+// =====================================================
+// PUBLIC PDF TEXT READER
+// =====================================================
+// can be used by other screens if needed.
+// =====================================================
+
+export const readDocumentContent = async (fileUri) => {
+
+  try {
+
+    console.log(
+      '📥 Reading document:',
+      fileUri
+    );
+
+    const response =
+      await fetch(fileUri);
+
+    if (!response.ok) {
+      throw new Error(
+        'Could not read the selected PDF file.'
+      );
     }
 
-    const arrayBuffer = await fetchRes.arrayBuffer();
-    console.log('✅ PDF fetched —', arrayBuffer.byteLength, 'bytes');
+    const arrayBuffer =
+      await response.arrayBuffer();
 
-    // ── Step 2: Extract text from PDF using PDF.js ──
-    console.log('📖 Extracting text from PDF...');
-    const extractedText = await extractTextFromPDF(arrayBuffer);
-    console.log('📖 Extracted', extractedText.length, 'characters');
-    
-    if (!extractedText || extractedText.length < 20) {
+    const extractedText =
+      await extractTextFromPDF(arrayBuffer);
+
+    if (
+      !extractedText ||
+      extractedText.length < 20
+    ) {
+
+      throw new Error(
+        'Could not extract readable text from this PDF. The PDF may be scanned or image-based.'
+      );
+    }
+
+    return extractedText;
+
+  } catch (error) {
+
+    console.error(
+      '❌ readDocumentContent error:',
+      error
+    );
+
+    throw error;
+  }
+};
+
+
+// =====================================================
+// SUMMARIZE PDF
+// =====================================================
+
+export const summarizePDF = async (
+  fileUri,
+  fileName
+) => {
+
+  try {
+
+    console.log(
+      '📥 Fetching PDF:',
+      fileName
+    );
+
+    const fetchRes =
+      await fetch(fileUri);
+
+    if (!fetchRes.ok) {
+
       return {
         success: false,
         message:
-          '⚠️ Could not extract text from this PDF.\n\n' +
-          'This usually means the PDF is scanned (an image rather than text). ' +
-          'Please use a text-based PDF.',
+          'Could not read the selected PDF file.',
       };
     }
 
-    // Trim to ~4000 chars to stay within free model context limits
-    const textToSend = extractedText.slice(0, 4000);
+    const arrayBuffer =
+      await fetchRes.arrayBuffer();
 
-    // ── Step 3: Send to OpenRouter Chat Completions API ──
-    console.log('🤖 Sending to OpenRouter:', MODEL);
+    console.log(
+      '✅ PDF fetched:',
+      arrayBuffer.byteLength,
+      'bytes'
+    );
 
-    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://snack.expo.dev',  // required by OpenRouter for free models
-        'X-Title': 'StudyGenie',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          {
-            role: 'user',
-            content:
-              'Summarize the following study document in exactly 3 to 5 bullet points.\n' +
-              'Rules:\n' +
-              '- Start every bullet point with the "•" character on its own line\n' +
-              '- Each bullet must be one clear, concise sentence\n' +
-              '- Return ONLY the bullet points — no intro, no headings, no conclusion\n\n' +
-              '--- DOCUMENT START ---\n' +
-              textToSend +
-              '\n--- DOCUMENT END ---',
-          },
-        ],
-        temperature: 0.3,
-        max_tokens: 512,
-      }),
-    });
 
-    const data = await res.json();
-    console.log('📝 OpenRouter response status:', res.status);
-    console.log('📝 Response body:', JSON.stringify(data));
+    // Extract text
+    const extractedText =
+      await extractTextFromPDF(arrayBuffer);
 
-    // ── Handle API errors ──
-    if (!res.ok) {
-      const msg =
-        data.error?.message ||
-        `OpenRouter API error — HTTP ${res.status}`;
-      console.error('❌ API error:', msg);
-      return { success: false, message: msg };
+
+    if (
+      !extractedText ||
+      extractedText.length < 20
+    ) {
+
+      return {
+        success: false,
+        message:
+          'Could not extract text from this PDF. This may be a scanned/image-based PDF.',
+      };
     }
 
-    const rawText = data.choices?.[0]?.message?.content || '';
+
+    // Limit text for free model
+    const textToSend =
+      extractedText.slice(0, 12000);
+
+
+    console.log(
+      '🤖 Sending document to OpenRouter...'
+    );
+
+
+    const res =
+      await fetch(
+        OPENROUTER_URL,
+        {
+          method: 'POST',
+
+          headers: {
+            Authorization:
+              `Bearer ${OPENROUTER_API_KEY}`,
+
+            'Content-Type':
+              'application/json',
+
+            'HTTP-Referer':
+              'https://snack.expo.dev',
+
+            'X-Title':
+              'StudyGenie',
+          },
+
+          body: JSON.stringify({
+
+            model: MODEL,
+
+            messages: [
+
+              {
+                role: 'user',
+
+                content:
+                  'Summarize the following study document in exactly 3 to 5 bullet points.\n\n' +
+
+                  'Rules:\n' +
+
+                  '- Start every bullet point with the "•" character.\n' +
+
+                  '- Each bullet must be one clear sentence.\n' +
+
+                  '- Return ONLY the bullet points.\n' +
+
+                  '- Do not include an introduction.\n' +
+
+                  '- Do not include a conclusion.\n\n' +
+
+                  '--- DOCUMENT START ---\n' +
+
+                  textToSend +
+
+                  '\n--- DOCUMENT END ---',
+              },
+
+            ],
+
+            temperature: 0.3,
+
+            max_tokens: 512,
+          }),
+        }
+      );
+
+
+    const data =
+      await res.json();
+
+
+    console.log(
+      '📝 OpenRouter status:',
+      res.status
+    );
+
+
+    if (!res.ok) {
+
+      const msg =
+        data?.error?.message ||
+        `OpenRouter API error - HTTP ${res.status}`;
+
+      return {
+        success: false,
+        message: msg,
+      };
+    }
+
+
+    const rawText =
+      data?.choices?.[0]?.message?.content || '';
+
 
     if (!rawText) {
-      return { success: false, message: 'The model returned an empty response. Try again.' };
+
+      return {
+        success: false,
+        message:
+          'The AI returned an empty response.',
+      };
     }
 
-    // ── Step 4: Parse "•" bullet points from the response ──
+
+    // Parse bullet points
     const bullets = rawText
       .split('\n')
       .map(line => line.trim())
-      .filter(line => line.startsWith('•'))
-      .map(line => line.replace(/^•\s*/, '').trim())
+      .filter(line => line.length > 0)
+      .map(line =>
+        line
+          .replace(/^•\s*/, '')
+          .replace(/^[-*]\s*/, '')
+          .trim()
+      )
       .filter(line => line.length > 0);
 
-    if (bullets.length === 0) {
-      // Fallback: model didn't use "•" — just return non-empty lines
-      const fallback = rawText
-        .split('\n')
-        .map(l => l.trim())
-        .filter(l => l.length > 0);
-      console.log('⚠️ No "•" bullets found — using fallback line split');
-      return { success: true, bullets: fallback };
-    }
 
-    console.log(`✅ Got ${bullets.length} bullet points`);
-    return { success: true, bullets };
+    return {
+      success: true,
+      bullets,
+    };
 
   } catch (error) {
-    console.error('❌ summarizePDF crash:', error);
+
+    console.error(
+      '❌ summarizePDF error:',
+      error
+    );
+
     return {
       success: false,
-      message: error.message || 'An unexpected error occurred.',
+      message:
+        error?.message ||
+        'An unexpected error occurred.',
     };
   }
 };
 
-// ─────────────────────────────────────────────────────────────────
-// CHATBOT EXPORT — called by ChatbotScreen.js
-// ─────────────────────────────────────────────────────────────────
-export const askChatbot = async (messages, documentText = '') => {
+
+// =====================================================
+// CHATBOT
+// =====================================================
+// PDF-aware chatbot.
+// The extracted PDF text is explicitly sent together
+// with the user's question.
+// =====================================================
+
+export const askChatbot = async (
+  messages,
+  documentText = ''
+) => {
+
   try {
-    // Format messages for OpenRouter (ignores our custom local roles if any)
-    const formattedMessages = messages.map(msg => ({
-      role: msg.role === 'assistant' ? 'assistant' : 'user',
-      content: msg.content
-    }));
-    // Inject document context if available
-    if (documentText) {
-      formattedMessages.unshift({
-        role: 'system',
-        content: `You are StudyGenie, a helpful AI study assistant. The user is asking questions about the following document content.\n\n--- DOCUMENT START ---\n${documentText.slice(0, 4000)}\n--- DOCUMENT END ---`
-      });
-    } else {
-      formattedMessages.unshift({
-        role: 'system',
-        content: 'You are StudyGenie, a helpful AI study assistant. Answer the user\'s questions clearly and concisely.'
-      });
+
+    console.log(
+      '🤖 Starting chatbot request...'
+    );
+
+
+    const hasDocument =
+      typeof documentText === 'string' &&
+      documentText.trim().length > 0;
+
+
+    console.log(
+      '📄 Document characters:',
+      hasDocument
+        ? documentText.length
+        : 0
+    );
+
+
+    // -------------------------------------------------
+    // Format conversation
+    // -------------------------------------------------
+
+    const conversationMessages =
+      messages
+
+        .filter(
+          msg =>
+            msg &&
+            typeof msg.content === 'string' &&
+            msg.content.trim().length > 0
+        )
+
+        .map(msg => ({
+
+          role:
+            msg.role === 'assistant'
+              ? 'assistant'
+              : 'user',
+
+          content:
+            msg.content.trim(),
+
+        }));
+
+
+    // -------------------------------------------------
+    // Find latest question
+    // -------------------------------------------------
+
+    const lastUserMessage =
+      [...conversationMessages]
+        .reverse()
+        .find(
+          msg =>
+            msg.role === 'user'
+        );
+
+
+    if (!lastUserMessage) {
+
+      return {
+        success: false,
+        message:
+          'Please ask a question first.',
+      };
     }
-    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://snack.expo.dev',
-        'X-Title': 'StudyGenie',
+
+
+    const userQuestion =
+      lastUserMessage.content;
+
+
+    // -------------------------------------------------
+    // System instruction
+    // -------------------------------------------------
+
+    const systemInstruction = hasDocument
+
+      ? `
+You are StudyGenie, an AI study assistant.
+
+The user has uploaded a study document.
+
+The document has already been converted from PDF into text.
+
+IMPORTANT RULES:
+
+1. You CAN read the document text.
+2. Use the uploaded document as the primary source.
+3. Answer questions about the document using information from the document.
+4. Never say that you cannot read PDFs.
+5. Never tell the user to copy and paste the PDF.
+6. If the answer is not contained in the document, clearly say that it is not stated in the uploaded document.
+7. Do not invent information.
+8. Explain difficult concepts in simple study-friendly language.
+`
+
+      : `
+You are StudyGenie, a helpful AI study assistant.
+
+Answer the user's study questions clearly and accurately.
+`;
+
+
+    // -------------------------------------------------
+    // Create API messages
+    // -------------------------------------------------
+
+    const apiMessages = [
+
+      {
+        role: 'system',
+        content: systemInstruction,
       },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: formattedMessages,
-        temperature: 0.5,
-        max_tokens: 1024,
-      }),
-    });
-    const data = await res.json();
-    
-    if (!res.ok) {
-      const msg = data.error?.message || `API error - HTTP ${res.status}`;
-      return { success: false, message: msg };
+
+    ];
+
+
+    // Add previous conversation
+    const previousMessages =
+      conversationMessages.slice(
+        0,
+        Math.max(
+          0,
+          conversationMessages.length - 1
+        )
+      );
+
+
+    // Keep last 8 messages
+    apiMessages.push(
+      ...previousMessages.slice(-8)
+    );
+
+
+    // -------------------------------------------------
+    // Add document + question
+    // -------------------------------------------------
+
+    let finalUserMessage;
+
+
+    if (hasDocument) {
+
+      // Send up to 12,000 characters
+      const documentForAI =
+        documentText.slice(0, 12000);
+
+
+      finalUserMessage = `
+
+UPLOADED STUDY DOCUMENT
+
+================ DOCUMENT START ================
+
+${documentForAI}
+
+================ DOCUMENT END ==================
+
+USER QUESTION:
+
+${userQuestion}
+
+IMPORTANT:
+Answer the question using the uploaded document above.
+Do not say that you cannot read the PDF.
+`;
+
+    } else {
+
+      finalUserMessage =
+        userQuestion;
     }
-    const answer = data.choices?.[0]?.message?.content || '';
-    if (!answer) return { success: false, message: 'Received empty response from the AI.' };
-    return { success: true, answer };
+
+
+    apiMessages.push({
+
+      role: 'user',
+
+      content:
+        finalUserMessage,
+
+    });
+
+
+    console.log(
+      '📤 Sending chatbot request...'
+    );
+
+
+    // -------------------------------------------------
+    // OpenRouter request
+    // -------------------------------------------------
+
+    const res =
+      await fetch(
+        OPENROUTER_URL,
+        {
+          method: 'POST',
+
+          headers: {
+
+            Authorization:
+              `Bearer ${OPENROUTER_API_KEY}`,
+
+            'Content-Type':
+              'application/json',
+
+            'HTTP-Referer':
+              'https://snack.expo.dev',
+
+            'X-Title':
+              'StudyGenie',
+          },
+
+          body: JSON.stringify({
+
+            model: MODEL,
+
+            messages:
+              apiMessages,
+
+            temperature: 0.2,
+
+            max_tokens: 1200,
+
+          }),
+        }
+      );
+
+
+    const data =
+      await res.json();
+
+
+    console.log(
+      '📝 Chatbot response status:',
+      res.status
+    );
+
+
+    if (!res.ok) {
+
+      const msg =
+        data?.error?.message ||
+        `API error - HTTP ${res.status}`;
+
+
+      console.error(
+        '❌ Chatbot API error:',
+        msg
+      );
+
+
+      return {
+        success: false,
+        message: msg,
+      };
+    }
+
+
+    const answer =
+      data?.choices?.[0]?.message?.content;
+
+
+    if (
+      !answer ||
+      typeof answer !== 'string'
+    ) {
+
+      return {
+        success: false,
+        message:
+          'The AI returned an empty response.',
+      };
+    }
+
+
+    console.log(
+      '✅ Chatbot answer received.'
+    );
+
+
+    return {
+
+      success: true,
+
+      answer:
+        answer.trim(),
+
+    };
+
+
   } catch (error) {
-    return { success: false, message: error.message || 'An unexpected error occurred.' };
+
+    console.error(
+      '❌ askChatbot error:',
+      error
+    );
+
+
+    return {
+
+      success: false,
+
+      message:
+        error?.message ||
+        'An unexpected chatbot error occurred.',
+
+    };
   }
 };
 
-// ─────────────────────────────────────────────────────────────────
-// FLASHCARDS EXPORT — called by FlashcardsScreen.js
-// ─────────────────────────────────────────────────────────────────
-export const generateFlashcards = async (fileUri, fileName) => {
+
+// =====================================================
+// FLASHCARDS
+// =====================================================
+
+export const generateFlashcards = async (
+  fileUri,
+  fileName
+) => {
+
   try {
-    const fetchRes = await fetch(fileUri);
-    if (!fetchRes.ok) return { success: false, message: 'Could not read the selected PDF file.' };
-    const arrayBuffer = await fetchRes.arrayBuffer();
-    const extractedText = await extractTextFromPDF(arrayBuffer);
-    
-    if (!extractedText || extractedText.length < 20) return { success: false, message: 'Could not extract text from this PDF.' };
-    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://snack.expo.dev',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          {
-            role: 'user',
-            content:
-              'Based on the following document, create exactly 5 study flashcards.\n' +
-              'Format each flashcard exactly like this on separate lines:\n' +
-              'Q: [The question]\n' +
-              'A: [The answer]\n' +
-              'Separate each flashcard with a blank line. Return ONLY the Q and A lines.\n\n' +
-              '--- DOCUMENT START ---\n' +
-              extractedText.slice(0, 4000) +
-              '\n--- DOCUMENT END ---',
+
+    const fetchRes =
+      await fetch(fileUri);
+
+
+    if (!fetchRes.ok) {
+
+      return {
+        success: false,
+        message:
+          'Could not read the selected PDF file.',
+      };
+    }
+
+
+    const arrayBuffer =
+      await fetchRes.arrayBuffer();
+
+
+    const extractedText =
+      await extractTextFromPDF(
+        arrayBuffer
+      );
+
+
+    if (
+      !extractedText ||
+      extractedText.length < 20
+    ) {
+
+      return {
+        success: false,
+        message:
+          'Could not extract text from this PDF.',
+      };
+    }
+
+
+    const res =
+      await fetch(
+        OPENROUTER_URL,
+        {
+          method: 'POST',
+
+          headers: {
+
+            Authorization:
+              `Bearer ${OPENROUTER_API_KEY}`,
+
+            'Content-Type':
+              'application/json',
+
+            'HTTP-Referer':
+              'https://snack.expo.dev',
+
+            'X-Title':
+              'StudyGenie',
           },
-        ],
-        temperature: 0.4,
-        max_tokens: 800,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) return { success: false, message: data.error?.message || `API error - ${res.status}` };
-    const rawText = data.choices?.[0]?.message?.content || '';
-    
+
+          body: JSON.stringify({
+
+            model: MODEL,
+
+            messages: [
+
+              {
+                role: 'user',
+
+                content:
+                  'Based on the following document, create exactly 5 study flashcards.\n\n' +
+
+                  'Format exactly:\n' +
+
+                  'Q: [question]\n' +
+
+                  'A: [answer]\n\n' +
+
+                  'Separate each flashcard with a blank line.\n' +
+
+                  'Return ONLY the Q and A lines.\n\n' +
+
+                  '--- DOCUMENT START ---\n' +
+
+                  extractedText.slice(
+                    0,
+                    12000
+                  ) +
+
+                  '\n--- DOCUMENT END ---',
+              },
+
+            ],
+
+            temperature: 0.4,
+
+            max_tokens: 800,
+
+          }),
+        }
+      );
+
+
+    const data =
+      await res.json();
+
+
+    if (!res.ok) {
+
+      return {
+        success: false,
+        message:
+          data?.error?.message ||
+          `API error - ${res.status}`,
+      };
+    }
+
+
+    const rawText =
+      data?.choices?.[0]?.message?.content ||
+      '';
+
+
     const cards = [];
-    const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+    const lines =
+      rawText
+        .split('\n')
+        .map(line => line.trim())
+        .filter(
+          line => line.length > 0
+        );
+
+
     let currentQ = '';
+
+
     for (const line of lines) {
-      if (line.toUpperCase().startsWith('Q:')) currentQ = line.substring(2).trim();
-      else if (line.toUpperCase().startsWith('A:') && currentQ) {
-        cards.push({ question: currentQ, answer: line.substring(2).trim() });
+
+      if (
+        line
+          .toUpperCase()
+          .startsWith('Q:')
+      ) {
+
+        currentQ =
+          line
+            .substring(2)
+            .trim();
+
+      } else if (
+
+        line
+          .toUpperCase()
+          .startsWith('A:') &&
+        currentQ
+
+      ) {
+
+        cards.push({
+
+          question:
+            currentQ,
+
+          answer:
+            line
+              .substring(2)
+              .trim(),
+
+        });
+
+
         currentQ = '';
       }
     }
-    if (cards.length === 0) return { success: false, message: 'Failed to parse flashcards correctly.' };
-    return { success: true, cards };
-  } catch (error) {
-    return { success: false, message: error.message };
-  }
-};
-// ─────────────────────────────────────────────────────────────────
-// QUIZ EXPORT — called by QuizScreen.js
-// ─────────────────────────────────────────────────────────────────
-export const generateQuiz = async (fileUri, fileName) => {
-  try {
-    const fetchRes = await fetch(fileUri);
-    if (!fetchRes.ok) return { success: false, message: 'Could not read the selected PDF file.' };
-    const arrayBuffer = await fetchRes.arrayBuffer();
-    const extractedText = await extractTextFromPDF(arrayBuffer);
-    if (!extractedText || extractedText.length < 20) return { success: false, message: 'Could not extract text from this PDF.' };
-    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://snack.expo.dev',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          {
-            role: 'user',
-            content:
-              'Based on the following document, create a 5-question multiple choice quiz.\n' +
-              'Format each question exactly like this block:\n' +
-              'Q: [Question text]\n' +
-              'A) [Option A]\n' +
-              'B) [Option B]\n' +
-              'C) [Option C]\n' +
-              'D) [Option D]\n' +
-              'Correct: [Just the letter A, B, C, or D]\n' +
-              'Separate each question block with a blank line. Return ONLY the question blocks.\n\n' +
-              '--- DOCUMENT START ---\n' +
-              extractedText.slice(0, 4000) +
-              '\n--- DOCUMENT END ---',
-          },
-        ],
-        temperature: 0.4,
-        max_tokens: 1000,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) return { success: false, message: data.error?.message || `API error - ${res.status}` };
-    const rawText = data.choices?.[0]?.message?.content || '';
-    
-    const questions = [];
-    let currentQ = null;
-    const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    
-    for (const line of lines) {
-      if (line.toUpperCase().startsWith('Q:')) {
-        if (currentQ && currentQ.options.length > 0) questions.push(currentQ);
-        currentQ = { question: line.substring(2).trim(), options: [], correct: '' };
-      } else if (line.match(/^[A-D]\)/i) && currentQ) {
-        currentQ.options.push(line.substring(2).trim());
-      } else if (line.toUpperCase().startsWith('CORRECT:') && currentQ) {
-        currentQ.correct = line.substring(8).trim().toUpperCase();
-      }
+
+
+    if (cards.length === 0) {
+
+      return {
+        success: false,
+        message:
+          'Failed to parse flashcards correctly.',
+      };
     }
-    if (currentQ && currentQ.options.length > 0) questions.push(currentQ);
-    if (questions.length === 0) return { success: false, message: 'Failed to parse quiz format.' };
-    return { success: true, questions };
+
+
+    return {
+      success: true,
+      cards,
+    };
+
+
   } catch (error) {
-    return { success: false, message: error.message };
+
+    console.error(
+      '❌ Flashcard error:',
+      error
+    );
+
+
+    return {
+      success: false,
+      message:
+        error?.message ||
+        'Failed to generate flashcards.',
+    };
   }
 };
 
+
+// =====================================================
+// QUIZ
+// =====================================================
+
+export const generateQuiz = async (
+  fileUri,
+  fileName
+) => {
+
+  try {
+
+    const fetchRes =
+      await fetch(fileUri);
+
+
+    if (!fetchRes.ok) {
+
+      return {
+        success: false,
+        message:
+          'Could not read the selected PDF file.',
+      };
+    }
+
+
+    const arrayBuffer =
+      await fetchRes.arrayBuffer();
+
+
+    const extractedText =
+      await extractTextFromPDF(
+        arrayBuffer
+      );
+
+
+    if (
+      !extractedText ||
+      extractedText.length < 20
+    ) {
+
+      return {
+        success: false,
+        message:
+          'Could not extract text from this PDF.',
+      };
+    }
+
+
+    const res =
+      await fetch(
+        OPENROUTER_URL,
+        {
+          method: 'POST',
+
+          headers: {
+
+            Authorization:
+              `Bearer ${OPENROUTER_API_KEY}`,
+
+            'Content-Type':
+              'application/json',
+
+            'HTTP-Referer':
+              'https://snack.expo.dev',
+
+            'X-Title':
+              'StudyGenie',
+          },
+
+          body: JSON.stringify({
+
+            model: MODEL,
+
+            messages: [
+
+              {
+                role: 'user',
+
+                content:
+                  'Based on the following document, create a 5-question multiple choice quiz.\n\n' +
+
+                  'Format exactly:\n' +
+
+                  'Q: [Question text]\n' +
+
+                  'A) [Option A]\n' +
+
+                  'B) [Option B]\n' +
+
+                  'C) [Option C]\n' +
+
+                  'D) [Option D]\n' +
+
+                  'Correct: [A, B, C, or D]\n\n' +
+
+                  'Separate each question with a blank line.\n' +
+
+                  'Return ONLY the question blocks.\n\n' +
+
+                  '--- DOCUMENT START ---\n' +
+
+                  extractedText.slice(
+                    0,
+                    12000
+                  ) +
+
+                  '\n--- DOCUMENT END ---',
+              },
+
+            ],
+
+            temperature: 0.4,
+
+            max_tokens: 1000,
+
+          }),
+        }
+      );
+
+
+    const data =
+      await res.json();
+
+
+    if (!res.ok) {
+
+      return {
+        success: false,
+        message:
+          data?.error?.message ||
+          `API error - ${res.status}`,
+      };
+    }
+
+
+    const rawText =
+      data?.choices?.[0]?.message?.content ||
+      '';
+
+
+    const questions = [];
+
+    const lines =
+      rawText
+        .split('\n')
+        .map(line => line.trim())
+        .filter(
+          line => line.length > 0
+        );
+
+
+    let currentQ = null;
+
+
+    for (const line of lines) {
+
+      if (
+        line
+          .toUpperCase()
+          .startsWith('Q:')
+      ) {
+
+        if (
+          currentQ &&
+          currentQ.options.length > 0
+        ) {
+
+          questions.push(
+            currentQ
+          );
+        }
+
+
+        currentQ = {
+
+          question:
+            line
+              .substring(2)
+              .trim(),
+
+          options: [],
+
+          correct: '',
+
+        };
+
+
+      } else if (
+
+        /^[A-D]\)/i.test(line) &&
+        currentQ
+
+      ) {
+
+        currentQ.options.push(
+          line
+            .substring(2)
+            .trim()
+        );
+
+
+      } else if (
+
+        line
+          .toUpperCase()
+          .startsWith('CORRECT:') &&
+        currentQ
+
+      ) {
+
+        currentQ.correct =
+          line
+            .substring(8)
+            .trim()
+            .toUpperCase();
+      }
+    }
+
+
+    if (
+      currentQ &&
+      currentQ.options.length > 0
+    ) {
+
+      questions.push(
+        currentQ
+      );
+    }
+
+
+    if (
+      questions.length === 0
+    ) {
+
+      return {
+        success: false,
+        message:
+          'Failed to parse quiz format.',
+      };
+    }
+
+
+    return {
+      success: true,
+      questions,
+    };
+
+
+  } catch (error) {
+
+    console.error(
+      '❌ Quiz error:',
+      error
+    );
+
+
+    return {
+      success: false,
+      message:
+        error?.message ||
+        'Failed to generate quiz.',
+    };
+  }
+};
