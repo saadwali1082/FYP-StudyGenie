@@ -1,5 +1,3 @@
-// StudyPlannerScreen.js
-
 import React, {
   useEffect,
   useRef,
@@ -222,10 +220,6 @@ export default function StudyPlannerScreen({
       }
 
       if (!Device.isDevice) {
-        console.log(
-          'Native notifications require a physical device.'
-        );
-
         return;
       }
 
@@ -246,67 +240,20 @@ export default function StudyPlannerScreen({
     }
   };
 
-  const requestWebNotificationPermission =
-    async () => {
-      if (Platform.OS !== 'web') {
-        return true;
-      }
+  const requestWebNotificationPermission = async () => {
+    if (Platform.OS !== 'web') return true;
+    if (typeof window === 'undefined' || !('Notification' in window)) return false;
 
-      if (
-        typeof window === 'undefined' ||
-        !('Notification' in window)
-      ) {
-        window.alert(
-          'This browser does not support notifications.'
-        );
+    if (window.Notification.permission === 'granted') return true;
 
-        return false;
-      }
-
-      if (
-        window.Notification.permission ===
-        'granted'
-      ) {
-        return true;
-      }
-
-      if (
-        window.Notification.permission ===
-        'denied'
-      ) {
-        window.alert(
-          'Chrome notifications are blocked. Open the site settings and allow notifications for Expo Snack.'
-        );
-
-        return false;
-      }
-
-      try {
-        const permission =
-          await window.Notification.requestPermission();
-
-        if (permission !== 'granted') {
-          window.alert(
-            'Notification permission was not granted.'
-          );
-
-          return false;
-        }
-
-        return true;
-      } catch (error) {
-        console.error(
-          'Web permission error:',
-          error
-        );
-
-        window.alert(
-          'Unable to request Chrome notification permission.'
-        );
-
-        return false;
-      }
-    };
+    try {
+      const permission = await window.Notification.requestPermission();
+      return permission === 'granted';
+    } catch (error) {
+      console.log('Web Notification request skipped:', error?.message);
+      return false;
+    }
+  };
 
   // =====================================================
   // STORAGE
@@ -511,8 +458,6 @@ export default function StudyPlannerScreen({
       );
     }
 
-    // Browsers have a maximum timeout length.
-    // Longer reminders are checked again later.
     const maximumDelay = 2147483647;
 
     const scheduleTimer = () => {
@@ -575,11 +520,6 @@ export default function StudyPlannerScreen({
 
       try {
         if (!Device.isDevice) {
-          Alert.alert(
-            'Physical Device Required',
-            'Native notifications should be tested on a physical Android or iOS device.'
-          );
-
           return null;
         }
 
@@ -596,11 +536,6 @@ export default function StudyPlannerScreen({
             requestedPermission.status !==
             'granted'
           ) {
-            Alert.alert(
-              'Permission Required',
-              'Please allow notifications to receive study reminders.'
-            );
-
             return null;
           }
         }
@@ -692,12 +627,8 @@ export default function StudyPlannerScreen({
     let notificationId = null;
 
     if (Platform.OS === 'web') {
-      const permissionGranted =
-        await requestWebNotificationPermission();
-
-      if (!permissionGranted) {
-        return;
-      }
+      // Quietly attempt web permission, but never block plan creation
+      await requestWebNotificationPermission();
     } else {
       notificationId =
         await scheduleNativeNotification(
@@ -1201,11 +1132,7 @@ export default function StudyPlannerScreen({
                 styles.notificationNoteText
               }
             >
-              🔔 Chrome will ask for
-              notification permission when
-              you set your first reminder.
-              Keep this browser page open to
-              receive it.
+              🔔 Reminders will be saved to your schedule list below.
             </Text>
           </View>
         )}
@@ -1599,64 +1526,58 @@ const styles = StyleSheet.create({
 
   planInformation: {
     flex: 1,
-    marginRight: 10,
   },
 
   subject: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: 'bold',
     color: colors.text,
+    marginBottom: 6,
   },
 
   detail: {
     color: colors.muted,
-    marginTop: 6,
+    fontSize: 13,
+    marginBottom: 3,
   },
 
   status: {
-    paddingVertical: 6,
+    fontWeight: 'bold',
+    fontSize: 12,
+    paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: 12,
-    fontSize: 12,
-    fontWeight: 'bold',
     overflow: 'hidden',
   },
 
   scheduled: {
-    backgroundColor:
-      colors.softPurple,
-    color: colors.primary,
+    backgroundColor: '#E3F2FD',
+    color: '#1976D2',
   },
 
   completed: {
-    backgroundColor:
-      colors.softGreen ||
-      '#E8F5E9',
-
-    color:
-      colors.secondary ||
-      '#2E7D32',
+    backgroundColor: '#E8F5E9',
+    color: '#388E3C',
   },
 
   deleteButton: {
-    marginTop: 15,
-    backgroundColor: '#FFECEC',
-    padding: 12,
-    borderRadius: 12,
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    alignItems: 'center',
   },
 
   deleteText: {
-    textAlign: 'center',
-    color: '#E53935',
+    color: '#D32F2F',
     fontWeight: 'bold',
+    fontSize: 13,
   },
 
   backButton: {
-    backgroundColor:
-      colors.primaryDark,
+    backgroundColor: colors.primary,
     padding: 16,
     borderRadius: 14,
     marginTop: 15,
-    marginBottom: 40,
   },
 });
