@@ -1,4 +1,3 @@
-// SummaryScreen.js
 import React, { useState } from 'react';
 import {
   View,
@@ -12,7 +11,7 @@ import {
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { summarizePDF } from './openaiService';
-
+  
 export default function SummaryScreen({ navigation }) {
   const [selectedPDF, setSelectedPDF] = useState(null); // { uri, name, size }
   const [loading, setLoading] = useState(false);
