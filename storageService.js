@@ -1,4 +1,3 @@
-// storageService.js
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY = 'studygenie_materials';
